@@ -137,6 +137,8 @@ class PatchTrainer(object):
         #     self.model = torch.hub.load('ultralytics/yolov5', 'yolov5s', pretrained=True).eval().to(device)
         elif args.arch == "yolov8":
             self.model = YOLO('yolov8n.pt', task="detect")
+        elif args.arch == "yolov9":
+            self.model = YOLO('yolov9c.pt', task="detect")
         elif args.arch == "ensemble":
             pass
         else:
@@ -310,43 +312,6 @@ class PatchTrainer(object):
         else:
            self.lights = PointLights(device=self.device, location=[[np.sin(theta) * 3, 0.0, np.cos(theta) * 3]])
        
-        return
-
-    def initialize_tps2d(self):
-        locations_tshirt_ori = torch.load(os.path.join(self.DATA_DIR, 'Archive/tshirt_join/projections/part_all_2p5.pt'), map_location='cpu').to(self.device)
-        self.infos_tshirt = MU.get_map_kernel(locations_tshirt_ori, self.faces_uvs_tshirt)
-
-        locations_trouser_ori = torch.load(os.path.join(self.DATA_DIR, 'Archive/trouser_join/projections/part_all_off3p4.pt'), map_location='cpu').to(self.device)
-        self.infos_trouser = MU.get_map_kernel(locations_trouser_ori, self.faces_uvs_trouser)
-
-        target_control_points = p3dmd.get_points(self.tshirt_locations_infos, wrap=False).squeeze(0).cpu()
-        tps2d_tshirt = TPSGridGen(None, target_control_points, locations_tshirt_ori.cpu())
-        tps2d_tshirt.to(self.device)
-        self.tps2d_tshirt = tps2d_tshirt
-
-        target_control_points = p3dmd.get_points(self.trouser_locations_infos, wrap=False).squeeze(0).cpu()
-        tps2d_trouser = TPSGridGen(None, target_control_points, locations_trouser_ori.cpu())
-        tps2d_trouser.to(self.device)
-        self.tps2d_trouser = tps2d_trouser
-        return
-
-    def initialize_tps3d(self):
-        xmin, ymin, zmin = (-0.28170400857925415, -0.7323740124702454, -0.15313300490379333)
-        xmax, ymax, zmax = (0.28170400857925415, 0.5564370155334473, 0.0938199982047081)
-        xnum, ynum, znum = [5, 8, 5]
-        max_range = (torch.Tensor([xmax, ymax, zmax]) - torch.Tensor([xmin, ymin, zmin])) / torch.Tensor(
-            [xnum, ynum, znum])
-        self.max_range = (max_range * self.args.tps3d_range).tolist()
-        target_control_points = torch.tensor(list(itertools.product(
-            torch.linspace(xmin, xmax, xnum),
-            torch.linspace(ymin, ymax, ynum),
-            torch.linspace(zmin, zmax, znum),
-        )))
-        mesh = MU.join_meshes([self.mesh_man, self.mesh_tshirt, self.mesh_trouser])
-
-        tps3d = TPSGridGen(None, target_control_points, mesh.verts_packed().cpu())
-        tps3d.to(self.device)
-        self.tps3d = tps3d
         return
 
     def synthesis_image_uv_volume(self, background_batch, action_batch, Texture_pose, use_tps2d=False, use_tps3d=False):
@@ -923,7 +888,7 @@ if __name__ == '__main__':
     parser.add_argument("--diffusion_steps", type=int, default=10, help="")
     parser.add_argument("--do_classifier_free_guidance", default=False, help='')
     parser.add_argument("--half_precision_weights", default=True, help='')
-    parser.add_argument("--prompt", default="one banana", help='three bear, colorful repeated patterns')
+    parser.add_argument("--prompt", default="one horse", help='three bear, colorful repeated patterns')
     parser.add_argument("--pattern_mode", type=str, default="repeat", help='repeat, whole (for colorful repeated patterns)')
     parser.add_argument("--pretrained_model_name_or_path", type=str, default= "./pretained_model/miniSD.ckpt",
                         help = "if use stablediffusion with 512*512, change to runwayml/stable-diffusion-v1-5")
@@ -938,7 +903,9 @@ if __name__ == '__main__':
     torch.backends.cudnn.allow_tf32 = False
 
     print("Train info:", args)
-    args.save_path = args.save_path + "/" +  args.arch + "/" + args.optimize_type + "/" + args.prompt
+    with open(args.uv_cfg_file, 'r') as f:
+        current_cfg = yacs.load_cfg(f)
+    args.save_path = args.save_path + "/" +  args.arch + "/" + args.optimize_type + "/" + args.prompt.replace(" ","_") + + "/" + ""
     os.makedirs(args.save_path, exist_ok=True)
     print("save directory:", args.save_path)
     trainer = PatchTrainer(args)
@@ -949,18 +916,18 @@ if __name__ == '__main__':
             json.dump(args.__dict__, outfile, indent=2)
         trainer.train()
     else:
-        save_path = "/home/yjli/AIGC/Adversarial_camou/results/rcnn/latent/one horse/advtexture300.pth"
+        save_path = "/home/yjli/AIGC/Adversarial_camou/results/rcnn/latent/one_horse/advtexture300.pth"
         print(save_path)
         latent_dict = torch.load(save_path, map_location='cpu')
         path = "evaluation.txt"
-        for iou in [ 0.5, 0.3, 0.1, 0.01]:
-            test_arch = ["rcnn",  "mask_rcnn",  "regina",  "ssd",  "yolov35" , "detr", "yolov8", "fcos"]
-            for arch in test_arch:
-                args.arch = arch
-                args.test_iou = iou
-                trainer = PatchTrainer(args)  
-                adv_latents = latent_dict["latent"].to(trainer.device).to(trainer.weight_type)
-                precision, recall, avg, confs, thetas = trainer.test(args.arch, adv_latents, conf_thresh=0.01, iou_thresh=args.test_iou, angle_sample=37, mode=args.test_mode)
+        test_arch = ["rcnn",  "mask_rcnn",  "regina",  "ssd",  "yolov35" , "detr", "yolov8", "yolov9", "fcos"]
+        for arch in test_arch:
+            args.arch = arch
+            trainer = PatchTrainer(args)  
+            adv_latents = latent_dict["latent"].to(trainer.device).to(trainer.weight_type)
+            iou_list = [ 0.5, 0.3, 0.1, 0.01]
+            for iou in iou_list:
+                precision, recall, avg, confs, thetas = trainer.test(args.arch, adv_latents, conf_thresh=0.01, iou_thresh=iou, angle_sample=37, mode=args.test_mode)
                 print(f"{arch} ASR:", (confs < 0.5).mean())
                 for con in [0.1, 0.3, 0.5, 0.7, 0.9]:
                     with open(path, 'a') as file:   
