@@ -146,7 +146,6 @@ class MyHardPhongShader(HardPhongShader):
             msg = "Cameras must be specified either at initialization \
                 or in the forward pass of HardPhongShader"
             raise ValueError(msg)
-
         texels = meshes.sample_textures(fragments)
         lights = kwargs.get("lights", self.lights)
         materials = kwargs.get("materials", self.materials)

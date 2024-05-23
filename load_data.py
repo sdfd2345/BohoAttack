@@ -16,7 +16,7 @@ from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms
 import torchvision
-import utils
+import adv_camou_utils
 import numpy as np
 from arch.yolov3_models import YOLOv3Darknet
 
@@ -160,7 +160,7 @@ class YOLOv3MaxProbExtractor(nn.Module):
         max_probs = []
         det_loss = []
         num = 0
-        box_all = utils.get_region_boxes_general(YOLOoutputs, self.model, conf_thresh=0.2, name="yolov3")
+        box_all = adv_camou_utils.get_region_boxes_general(YOLOoutputs, self.model, conf_thresh=0.2, name="yolov3")
         for i in range(len(box_all)):
             boxes = box_all[i]
             assert boxes.shape[1] == 7

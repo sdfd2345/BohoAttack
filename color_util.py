@@ -35,7 +35,7 @@ class ColorTransform(nn.Module):
     def forward(self, x):
         f = self.poly_feature(x)
         f = f.transpose(1, -1)
-        #     pred = (f.unsqueeze(1) * weight.unsqueeze(0)).sum(2) + bias
+        # pred = (f.unsqueeze(1) * weight.unsqueeze(0)).sum(2) + bias
         pred = torch.matmul(f, self.weight) + self.bias
         pred = pred.transpose(1, -1)
         return pred

@@ -21,7 +21,6 @@ import matplotlib.pyplot as plt
 
 from generator import *
 from load_data import *
-from tps import *
 from transformers import DeformableDetrForObjectDetection
 import torch.nn as nn
 from torchvision import transforms
@@ -73,7 +72,7 @@ def create_uv_cfg(device, uvcfg_file_name):
         current_cfg = yacs.load_cfg(f)
 
     if 'parent_cfg' in current_cfg.keys():
-        with open("./UV_Volumes/" +current_cfg.parent_cfg, 'r') as f:
+        with open(current_cfg.parent_cfg, 'r') as f:
             parent_cfg = yacs.load_cfg(f)
         uv_cfg.merge_from_other_cfg(parent_cfg)
 
@@ -230,7 +229,8 @@ class PatchTrainer(object):
         for i in range(len(self.Texture_pose)):
             x = i // 6 * self.tex_size
             y = i % 6 * self.tex_size
-            self.Texture_pose[i]  = torch.from_numpy(TextureIm_pose[x:x + self.tex_size, y:y + self.tex_size]).float().permute(2,0,1)/255  
+            texture = np.transpose(TextureIm_pose[x:x + self.tex_size, y:y + self.tex_size])
+            self.Texture_pose[i]  = torch.from_numpy(texture).float().permute(2,0,1)/255  
             
         tps_para_front = torch.load( "./UV_Volumes/data/trained_model/TPS/tps_para_front.pt")    
         self.theta_tensor = tps_para_front["theta_tensor"].to(self.device).to(self.weight_type)
@@ -239,9 +239,7 @@ class PatchTrainer(object):
 
     def prepare_latents(self, batch_size, num_channels_latents, height=256, width=256, dtype=torch.float16, device=torch.device("cuda")):
         vae_scale_factor = 8
-        # generator = torch.Generator(device='cuda') # ge the generated seed
         shape = (batch_size, num_channels_latents, height // vae_scale_factor, width // vae_scale_factor)
-        # latents = randn_tensor(shape, generator=generator, device=device, dtype=dtype)
         latents = randn_tensor(shape, device=device, dtype=dtype)
         return latents 
     
@@ -446,7 +444,7 @@ class PatchTrainer(object):
         return kl_loss
 
     def load_weights(self, save_path, epoch):
-        path = save_path + f"/advtexture-{self.uv_cfg.exp_name}-{epoch}.pth"
+        path = save_path + f"/advtexture-{epoch}.pth"
         latent_dict = torch.load(path, map_location='cpu')
         return latent_dict
     
@@ -554,13 +552,13 @@ class PatchTrainer(object):
                     action_batch['epoch'] = -1
                     p_background_batch, gt, output = self.synthesis_image_uv_volume(background_batch, action_batch, Texture_pose,  False, False)
                     
-                    # plt.figure(figsize=(10, 10))
-                    # plt.subplot(121)
-                    # plt.imsave(args.save_path + f"/texture_tshirt-{epoch}-{i_batch}.png", tex_texture.permute(0,2,3,1)[0, :, :, :3].clamp(0,1).detach().cpu().numpy())
-                    # print(args.save_path + f"/texture_tshirt-{self.uv_cfg.exp_name}-{epoch}-{i_batch}.png")
-                    # plt.subplot(122)
-                    # plt.imsave(args.save_path + f"/p_background_batch-{epoch}-{i_batch}.png", p_background_batch.permute(0,2,3,1)[0, :, :, :3].clamp(0,1).detach().cpu().numpy())
-                    # print(args.save_path + f"/p_background_batch-{self.uv_cfg.exp_name}-{epoch}-{i_batch}.png")
+                    plt.figure(figsize=(10, 10))
+                    plt.subplot(121)
+                    plt.imsave(args.save_path + f"/texture_tshirt-{epoch}-{i_batch}.png", tex_texture.permute(0,2,3,1)[0, :, :, :3].clamp(0,1).detach().cpu().numpy())
+                    print(args.save_path + f"/texture_tshirt-{self.uv_cfg.exp_name}-{epoch}-{i_batch}.png")
+                    plt.subplot(122)
+                    plt.imsave(args.save_path + f"/p_background_batch-{epoch}-{i_batch}.png", p_background_batch.permute(0,2,3,1)[0, :, :, :3].clamp(0,1).detach().cpu().numpy())
+                    print(args.save_path + f"/p_background_batch-{self.uv_cfg.exp_name}-{epoch}-{i_batch}.png")
                     
                     t1 = time.time()
                     normalize = True
@@ -713,7 +711,7 @@ class PatchTrainer(object):
                                 "latent": adv_latents.detach().cpu(),
                                 "ASR": torch.tensor(asr)
                                 }
-                path = args.save_path + f'/advtexture-{self.uv_cfg.exp_name}-{epoch}.pth'
+                path = args.save_path + f'/advtexture-{epoch}.pth'
                 torch.save(latent_dict, path)
 
     def test(self, arch, adv_latents, conf_thresh, iou_thresh, num_of_samples=100, angle_sample=37, mode='person', detect_model = None):
@@ -895,7 +893,7 @@ if __name__ == '__main__':
     parser.add_argument("--action_sampling", type = bool, default=True, help='')
     parser.add_argument("--use_GMM", type = bool, default=True, help='')
     parser.add_argument("--uv_cfg_file", type = str, default="./UV_Volumes/configs/zju_mocap_exp/377.yaml", help='action sampling file name')
-    parser.add_argument("--pretrained_texture_stack_path", type = str, default="./UV_Volumes/data/result/UVvolume_ZJU/zju377/comparison/texture_static_frame0000_epoch0400.png")
+    parser.add_argument("--pretrained_texture_stack_path", type = str, default="./data/texture_stacks/texture_static_frame0000_epoch0399.png")
     args = parser.parse_args()
     assert args.seed_type in ['fixed', 'random', 'variable', 'langevin']
 
@@ -905,7 +903,8 @@ if __name__ == '__main__':
     print("Train info:", args)
     with open(args.uv_cfg_file, 'r') as f:
         current_cfg = yacs.load_cfg(f)
-    args.save_path = args.save_path + "/" +  args.arch + "/" + args.optimize_type + "/" + args.prompt.replace(" ","_") + + "/" + ""
+    exp_name = current_cfg.exp_name
+    args.save_path = args.save_path + "/" +  args.arch + "/" + args.optimize_type + "/" + args.prompt.replace(" ","_") + "/" + exp_name
     os.makedirs(args.save_path, exist_ok=True)
     print("save directory:", args.save_path)
     trainer = PatchTrainer(args)

@@ -163,7 +163,7 @@ def drawcircles_with_blur(original_circles, coordinates, fig_size):
     prob = torch.sigmoid(dist)
     return prob
 
-
+# 根據原始圓形的位置、顏色和圖像尺寸來生成一幅圖像。
 def drawcircles_fix_color(original_circles, coordinates, colors, fig_size_h, fig_size_w,blur=1):
     assert original_circles.shape[0] == colors.shape[0]
     coordinates = coordinates.expand(original_circles.shape[1],-1,-1,-1).permute(1,2,0,3)
@@ -184,27 +184,23 @@ def drawcircles_fix_color(original_circles, coordinates, colors, fig_size_h, fig
     # print(color_map)
     return color_map
 
-
+# 根據原始圓形的位置、顏色和圖像尺寸來計算每個像素的顏色概率分佈。
 def prob_fix_color(original_circles, coordinates, colors, fig_size_h, fig_size_w,blur=1):
     assert original_circles.shape[0] == colors.shape[0]
     coordinates = coordinates.expand(original_circles.shape[1],-1,-1,-1).permute(1,2,0,3)
-    # circles = original_circles * fig_size_h
     circle0 = original_circles[...,0]*fig_size_h
     circle1 = original_circles[...,1]*fig_size_w
     circles = torch.stack([circle0,circle1],dim=-1)
     dist_sum = torch.zeros([colors.shape[0],fig_size_h,fig_size_w]).to(coordinates.device)
     for color_idx in range(colors.shape[0]):
         dist = torch.norm(coordinates-circles[color_idx,:,:2],dim=-1)
-        # dist = torch.norm(coordinates-circles[color_idx,:,:2],dim=-1)
-        # dist = dist / (circles[color_idx,:,2]+1)
         dist_sum[color_idx] = torch.exp(-dist/blur).sum(dim=-1)
-        # print(dist_sum[color_idx])
-    # print(dist_sum[0])
     dist_sum = dist_sum/dist_sum.sum(dim=0)
     return dist_sum
 
+# 根據給定的概率分佈(prob_map)、種子(seed)和顏色(color)來生成一個紋理。
+# 該函數使用了Gumbel-Softmax技巧來生成紋理。
 def gumbel_color_fix_seed(prob_map, seed, color, tau=0.3, type='gumbel'):
-    # print(prob_map.shape, seed.shape, color.shape)
     if type == 'gumbel':
         color_map = F.softmax((torch.log(prob_map) + seed)/tau, dim=-1)
     elif type == 'determinate':
@@ -215,7 +211,7 @@ def gumbel_color_fix_seed(prob_map, seed, color, tau=0.3, type='gumbel'):
     tex = torch.matmul(color_map, color).unsqueeze(0)
     return tex
 
-
+# 這個函數看起來是計算控制圓形位置的損失。
 def ctrl_loss(circles, fig_h, fig_w, sigma=40):
     circles = circles.repeat(circles.shape[1],1,1,1).permute(1,0,2,3)
     diff = circles - circles.permute(0,2,1,3)
