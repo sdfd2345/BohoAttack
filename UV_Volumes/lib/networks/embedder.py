@@ -1,5 +1,5 @@
 import torch
-from lib.config import cfg
+from ..config import cfg
 
 
 class Embedder:

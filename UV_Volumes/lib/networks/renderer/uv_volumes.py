@@ -1,5 +1,6 @@
 import torch
-from lib.config import cfg, args
+import sys
+from ...config.config import cfg, args
 import torch.nn.functional as F
 
 class Renderer:

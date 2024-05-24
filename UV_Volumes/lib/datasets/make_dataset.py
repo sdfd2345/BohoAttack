@@ -7,8 +7,8 @@ import os
 from .collate_batch import make_collator
 import numpy as np
 import time
-from lib.config.config import cfg
-from lib.datasets.dataset import Dataset
+from ..config.config import cfg
+from ..datasets.dataset import Dataset
 
 def _dataset_factory(is_train):
     if is_train:

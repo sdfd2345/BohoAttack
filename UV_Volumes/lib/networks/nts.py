@@ -4,7 +4,7 @@ import torch.nn as nn
 import spconv.pytorch as spconv
 import torch.nn.functional as F
 import torch
-from lib.config import cfg
+from ..config import cfg
 from . import embedder
 
 class Network(nn.Module):

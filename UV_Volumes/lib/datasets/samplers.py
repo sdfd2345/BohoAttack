@@ -4,7 +4,7 @@ import numpy as np
 import torch
 import math
 import torch.distributed as dist
-from lib.config import cfg
+from ..config import cfg
 
 
 class ImageSizeBatchSampler(Sampler):

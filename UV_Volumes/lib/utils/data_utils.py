@@ -1,7 +1,7 @@
 import numpy as np
-from lib.utils import base_utils
+from .base_utils import project
 import cv2
-from lib.config.config import def_cfg
+from ..config.config import def_cfg
 cfg = def_cfg()
 
 import pickle
@@ -87,7 +87,7 @@ def get_bound_corners(bounds):
 
 def get_bound_2d_mask(bounds, K, pose, H, W):
     corners_3d = get_bound_corners(bounds)
-    corners_2d = base_utils.project(corners_3d, K, pose)
+    corners_2d = project(corners_3d, K, pose)
     corners_2d = np.round(corners_2d).astype(int)
     mask = np.zeros((H, W), dtype=np.uint8)
     cv2.fillPoly(mask, [corners_2d[[0, 1, 3, 2, 0]]], 1)

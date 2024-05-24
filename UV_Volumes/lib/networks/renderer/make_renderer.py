@@ -1,5 +1,5 @@
 import imp
-import lib.networks.renderer.uv_volumes as uv_volumes
+from .uv_volumes import Renderer
 
 def make_renderer(cfg, network):
     # module = cfg.renderer_module
@@ -7,5 +7,5 @@ def make_renderer(cfg, network):
     # path = cfg.renderer_path
     # print("render path: " ,path)
     # renderer = imp.load_source(module, path).Renderer(network)
-    renderer = uv_volumes.Renderer(network)
+    renderer = Renderer(network)
     return renderer
