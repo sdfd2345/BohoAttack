@@ -229,7 +229,7 @@ class PatchTrainer(object):
         for i in range(len(self.Texture_pose)):
             x = i // 6 * self.tex_size
             y = i % 6 * self.tex_size
-            texture = np.transpose(TextureIm_pose[x:x + self.tex_size, y:y + self.tex_size])
+            texture = TextureIm_pose[x:x + self.tex_size, y:y + self.tex_size].transpose(1,0,2)
             self.Texture_pose[i]  = torch.from_numpy(texture).float().permute(2,0,1)/255  
             
         tps_para_front = torch.load( "./UV_Volumes/data/trained_model/TPS/tps_para_front.pt")    
@@ -552,13 +552,13 @@ class PatchTrainer(object):
                     action_batch['epoch'] = -1
                     p_background_batch, gt, output = self.synthesis_image_uv_volume(background_batch, action_batch, Texture_pose,  False, False)
                     
-                    plt.figure(figsize=(10, 10))
-                    plt.subplot(121)
-                    plt.imsave(args.save_path + f"/texture_tshirt-{epoch}-{i_batch}.png", tex_texture.permute(0,2,3,1)[0, :, :, :3].clamp(0,1).detach().cpu().numpy())
-                    print(args.save_path + f"/texture_tshirt-{self.uv_cfg.exp_name}-{epoch}-{i_batch}.png")
-                    plt.subplot(122)
-                    plt.imsave(args.save_path + f"/p_background_batch-{epoch}-{i_batch}.png", p_background_batch.permute(0,2,3,1)[0, :, :, :3].clamp(0,1).detach().cpu().numpy())
-                    print(args.save_path + f"/p_background_batch-{self.uv_cfg.exp_name}-{epoch}-{i_batch}.png")
+                    # plt.figure(figsize=(10, 10))
+                    # plt.subplot(121)
+                    # plt.imsave(args.save_path + f"/texture_tshirt-{epoch}-{i_batch}.png", tex_texture.permute(0,2,3,1)[0, :, :, :3].clamp(0,1).detach().cpu().numpy())
+                    # print(args.save_path + f"/texture_tshirt-{self.uv_cfg.exp_name}-{epoch}-{i_batch}.png")
+                    # plt.subplot(122)
+                    # plt.imsave(args.save_path + f"/p_background_batch-{epoch}-{i_batch}.png", p_background_batch.permute(0,2,3,1)[0, :, :, :3].clamp(0,1).detach().cpu().numpy())
+                    # print(args.save_path + f"/p_background_batch-{self.uv_cfg.exp_name}-{epoch}-{i_batch}.png")
                     
                     t1 = time.time()
                     normalize = True
@@ -679,7 +679,7 @@ class PatchTrainer(object):
                 self.writer.add_scalar('epoch/lr', self.optimizer.param_groups[0]['lr'], epoch)
                 
             et0 = time.time()
-            if (epoch) % 5 == 0:
+            if (epoch) % 50 == 0:
                 plt.figure(figsize=(10, 10))
                 plt.subplot(111)
                 plt.imsave(args.save_path + f"/texture_tshirt-{self.uv_cfg.exp_name}-{epoch}.png", tex_texture.permute(0,2,3,1)[0, :, :, :3].clamp(0,1).detach().cpu().numpy())
@@ -689,8 +689,8 @@ class PatchTrainer(object):
                 fig.savefig(args.save_path + f"/p_background_batch-{self.uv_cfg.exp_name}-{epoch}.png")
                 logging.info('save image at' + args.save_path + f"/texture_tshirt-{self.uv_cfg.exp_name}-{epoch}.png")
                 logging.info('save image at' + args.save_path + f"/p_background_batch-{self.uv_cfg.exp_name}-{epoch}.png")
-                arc_list = ['rcnn','yolov3','mask_rcnn']
-                detect_model_list = [self.model, self.yolo_model, self.mask_rcnn_model]   
+                arc_list = ['rcnn','yolov3']
+                detect_model_list = [self.model, self.yolo_model]   
                 for i in range(len(arc_list)):
                     precision, recall, avg, confs, thetas = trainer.test(arc_list[i], adv_latents, conf_thresh=0.01, iou_thresh=args.test_iou, 
                                                                         angle_sample=37, mode=args.test_mode, detect_model = detect_model_list[i])
@@ -880,7 +880,7 @@ if __name__ == '__main__':
     parser.add_argument('--nepoch', type=int, default=1000, help='')
     parser.add_argument('--checkpoints', type=int, default=300, help='')
     parser.add_argument('--batch_size', type=int, default=4, help='')
-    parser.add_argument('--save_path', default='/home/yjli/AIGC/Adversarial_camou/results/results_action_sampling/', help='')
+    parser.add_argument('--save_path', default='/home/yjli/AIGC/Adversarial_camou/results/', help='')
     parser.add_argument("--optimize_type", type=str, default="latent", help='image , latent_noise or latent')
     parser.add_argument("--diffusion_rate", type=float, default=0.5, help='')
     parser.add_argument("--diffusion_steps", type=int, default=10, help="")
@@ -906,6 +906,7 @@ if __name__ == '__main__':
     exp_name = current_cfg.exp_name
     args.save_path = args.save_path + "/" +  args.arch + "/" + args.optimize_type + "/" + args.prompt.replace(" ","_") + "/" + exp_name
     os.makedirs(args.save_path, exist_ok=True)
+
     print("save directory:", args.save_path)
     trainer = PatchTrainer(args)
     
@@ -915,7 +916,7 @@ if __name__ == '__main__':
             json.dump(args.__dict__, outfile, indent=2)
         trainer.train()
     else:
-        save_path = "/home/yjli/AIGC/Adversarial_camou/results/rcnn/latent/one_horse/advtexture300.pth"
+        save_path = "/home/yjli/AIGC/Adversarial_camou/results/rcnn/latent/one_horse/zju377/advtexture-300.pth"
         print(save_path)
         latent_dict = torch.load(save_path, map_location='cpu')
         path = "evaluation.txt"

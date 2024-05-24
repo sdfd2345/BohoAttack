@@ -35,8 +35,8 @@ class PoseSampler(data.Dataset):
     def __init__(self, 
                     device = torch.device("cuda:0"),
                     dtype=torch.float32,
-                    pose_folder = '/home/yjli/AIGC/Adversarial_camou/zju_mocap/CoreView_377/new_params', 
-                    model_path = '/home/yjli/AIGC/Adversarial_camou/SPIN/data/SMPL_NEUTRAL.pkl',
+                    pose_folder = './zju_mocap/CoreView_377/new_params', 
+                    model_path = './SPIN/data/SMPL_NEUTRAL.pkl',
                     length = 500):
         
         super(PoseSampler, self).__init__()
@@ -44,9 +44,12 @@ class PoseSampler(data.Dataset):
         self.poses, self.shapes = self.load_pose(pose_folder) #numpy
         pose_folder2="/home/yjli/AIGC/Adversarial_camou/zju_mocap/CoreView_377/new_params"
         poses2, shapes2 = self.load_pose(pose_folder2) #numpy
-        pose_folder3="/home/yjli/AIGC/Adversarial_camou/my_dataset/Peter_chess/params"
-        poses3, shapes3 = self.load_pose(pose_folder3) #numpy
-        self.poses = np.concatenate((self.poses, poses2, poses3), axis=0)
+        if os.path.exists("./my_dataset"):
+            pose_folder3="/home/yjli/AIGC/Adversarial_camou/my_dataset/Peter_chess/params"
+            poses3, shapes3 = self.load_pose(pose_folder3) #numpy
+            self.poses = np.concatenate((self.poses, poses2, poses3), axis=0)
+        else:
+            self.poses = np.concatenate((self.poses, poses2), axis=0)
         self.device = device
         self.dtype = dtype
         self.plot_pose_distribution(self.poses) 
