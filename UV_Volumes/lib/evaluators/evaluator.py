@@ -1,5 +1,5 @@
 import numpy as np
-from lib.config import cfg
+from ..config import cfg
 from skimage.metrics import structural_similarity as compare_ssim
 # from skimage.measure import compare_ssim
 import os

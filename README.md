@@ -49,12 +49,12 @@ We use the background data collected from the [AdvCaT](https://github.com/WhoTHU
 
 ### Faster-RCNN with prompt "one horse"
 ```
-python diffusion_model_patch_generator_uv_volumes.py --arc rcnn --prompt "one horse" --pattern_mode "repeat" --checkpoints 0 --lr 0.005 --device cuda:0 --do_classifier_free_guidance False --use_GMM True
+python src/diffusion_model_patch_generator_uv_volumes.py --arc rcnn --prompt "one horse" --pattern_mode "repeat" --checkpoints 0 --lr 0.005 --device cuda:0 --do_classifier_free_guidance False --use_GMM True
 ```
 
 ### YOLOv3 with prompt "two bears"
 ```
-python diffusion_model_patch_generator_uv_volumes.py --arc yolov3 --prompt "two bears" --pattern_mode "repeat" --lr 0.01 --device cuda:0 --do_classifier_free_guidance False --checkpoints 0 --use_GMM True
+python src/diffusion_model_patch_generator_uv_volumes.py --arc yolov3 --prompt "two bears" --pattern_mode "repeat" --lr 0.01 --device cuda:0 --do_classifier_free_guidance False --checkpoints 0 --use_GMM True
 ```
 
 
@@ -63,6 +63,6 @@ We provide the command to evaluate BohoAttack and visualize the result. For exam
 , run 
 
 ```
-python diffusion_model_patch_generator_uv_volumes.py --test True
+python src/diffusion_model_patch_generator_uv_volumes.py --test True
 ```
 

@@ -172,7 +172,7 @@ class PatchTrainer(object):
         print(f'One training epoch has {len(self.train_loader.dataset)} images')
         print(f'One test epoch has {len(self.test_loader.dataset)} images')
 
-        color_transform = ColorTransform('color_transform_dim6.npz')
+        color_transform = ColorTransform('./data/color_transform_dim6.npz')
         self.color_transform = color_transform.to(device)
 
         self.fig_size_H = 340

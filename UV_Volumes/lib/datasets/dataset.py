@@ -5,8 +5,8 @@ import imageio
 import cv2
 import sys
 sys.path.append("/home/yjli/AIGC/Adversarial_camou/UV_Volumes")
-from lib.config import cfg
-from lib.utils import data_utils
+from ..config import cfg
+from ..utils import data_utils
 import sys
 import pickle
 import json

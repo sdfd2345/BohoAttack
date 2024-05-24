@@ -24,7 +24,7 @@
   "nepoch": 1000,
   "checkpoints": 300,
   "batch_size": 4,
-  "save_path": "/home/yjli/AIGC/Adversarial_camou/results//rcnn/latent/one_horse/zju377",
+  "save_path": "./results//rcnn/latent/one_horse/zju377",
   "optimize_type": "latent",
   "diffusion_rate": 0.5,
   "diffusion_steps": 10,
