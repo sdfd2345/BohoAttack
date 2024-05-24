@@ -28,7 +28,7 @@ from tensorboardX import SummaryWriter
 from pytorch3d.structures import  join_meshes_as_batch
 import os
 from diffusers.utils.torch_utils import randn_tensor
-
+import pickle
 sys.path.append("./UV_Volumes")
 from UV_Volumes.lib.networks.renderer.uv_volumes import Renderer
 from UV_Volumes.lib.config import yacs
@@ -692,17 +692,18 @@ class PatchTrainer(object):
                 arc_list = ['rcnn','yolov3']
                 detect_model_list = [self.model, self.yolo_model]   
                 for i in range(len(arc_list)):
-                    precision, recall, avg, confs, thetas = trainer.test(arc_list[i], adv_latents, conf_thresh=0.01, iou_thresh=args.test_iou, 
+                    precision, recall, avg, confs = trainer.test(arc_list[i], adv_latents, conf_thresh=0.01, iou_thresh=args.test_iou, 
                                                                         angle_sample=37, mode=args.test_mode, detect_model = detect_model_list[i])
                     asr = (confs < 0.5).mean()
                     print(arc_list[i] + " TEST ASR:", asr)
                     logging.info(arc_list[i] + " TEST ASR:" + str(asr))
                     self.writer.add_scalar(f'epoch/{arc_list[i]}-test-ASR', asr, epoch)
                     info = [precision, recall, avg, confs]
-                    path = args.save_path + '/' + str(epoch) + 'test_results'
-                    path = path + '_iou' + str(args.iou_thresh).replace('.', '') + '_' + args.test_mode
-                    path = path + '.npz'
-                    np.savez(path, thetas=thetas, info=info)
+                    path = args.save_path + '/' + 'test_results_epoch' +str(epoch)
+                    path = path + '_iou' + str(args.test_iou).replace('.', '') + '.pkl'
+                    result = {"precision":precision, "recall":recall, "avg":avg, "confs":confs}
+                    with open(path, "wb") as f:
+                        pickle.dump(result, f)
                 if not os.path.exists(args.save_path):
                     os.makedirs(args.save_path)
                 if self.args.optimize_type == "latent":
@@ -933,3 +934,8 @@ if __name__ == '__main__':
                     with open(path, 'a') as file:   
                         file.write(f"{arch} iou {iou} confs {con}  ASR\: {(confs < con).mean()}\n")
                         print(f"{arch} ASR:", (confs < con).mean())
+                        path = args.save_path + '/' + 'test_results_'+arch
+                        path = path + '_iou' + str(args.iou_thresh).replace('.', '') + '.pkl'
+                        result = {"precision":precision, "recall":recall, "avg":avg, "confs":confs}
+                        with open(path, "wb") as f:
+                            pickle.dump(result, f)
