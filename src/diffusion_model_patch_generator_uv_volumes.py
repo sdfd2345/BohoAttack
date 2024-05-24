@@ -919,7 +919,7 @@ if __name__ == '__main__':
             json.dump(args.__dict__, outfile, indent=2)
         trainer.train()
     else:
-        save_path = "/home/yjli/AIGC/Adversarial_camou/results/rcnn/latent/one_horse/zju377/advtexture-300.pth"
+        save_path = "./results/rcnn/latent/one_horse/zju377/advtexture-300.pth"
         print(save_path)
         latent_dict = torch.load(save_path, map_location='cpu')
         path = "evaluation.txt"

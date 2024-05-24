@@ -7,7 +7,7 @@ from diffusers import DDIMScheduler, DDPMScheduler, StableDiffusionPipeline
 
 from diffusers.utils.import_utils import is_xformers_available
 from tqdm import tqdm
-
+from typing import Optional, Any, Dict
 import threestudio
 from threestudio.models.prompt_processors.base import PromptProcessorOutput
 from threestudio.utils.base import BaseObject
