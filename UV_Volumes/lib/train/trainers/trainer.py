@@ -120,8 +120,11 @@ class Trainer(object):
         data_size = len(data_loader)
         latent_index_record = []
 
-
+        count = 0
         for batch in tqdm.tqdm(data_loader):
+            count = count + 1
+            if count > 10:
+                break
             batch = self.to_cuda(batch)
             batch['epoch'] = epoch
             with torch.no_grad():
@@ -129,8 +132,7 @@ class Trainer(object):
                 if evaluator is not None:
                     evaluator.evaluate(output, batch, epoch)
                     
-                self.save_tps_dataset(batch, output)
-            '''
+                # self.save_tps_dataset(batch, output)
             loss_stats = self.reduce_loss_stats(loss_stats)
             for k, v in loss_stats.items():
                 val_loss_stats.setdefault(k, 0)
@@ -139,7 +141,6 @@ class Trainer(object):
             # texture map
             if batch['latent_index'] in latent_index_record:
                 continue
-
             with torch.no_grad():
                 tex_size = 128
                 i_onehot = torch.eye(24)[torch.arange(24)].cuda().unsqueeze(1).expand(-1,tex_size*tex_size,-1) #24,256*256,24
@@ -170,8 +171,8 @@ class Trainer(object):
                 frame_index = batch['frame_index'].item()
                 cv2.imwrite(
                     '{}/texture_static_frame{:04d}_epoch{:04d}.png'.format(result_dir, frame_index, epoch), 
-                    TextureIm_pose[..., [2, 1, 0]])
-
+                    TextureIm_pose[..., [1, 2, 0]])
+            '''
                 # view rgb
                 rgbs = []
                 alpha = np.linspace(-np.pi, np.pi, 6)
