@@ -18,7 +18,7 @@
   "test_mode": "person",
   "test_suffix": "",
   "train_iou": 0.01,
-  "device": "cuda:5",
+  "device": "cuda:1",
   "lr": 0.001,
   "lr_seed": 0.01,
   "nepoch": 1000,
@@ -34,7 +34,7 @@
   "pattern_mode": "repeat",
   "pretrained_model_name_or_path": "./pretained_model/miniSD.ckpt",
   "action_sampling": true,
-  "use_GMM": true,
+  "use_GMM": false,
   "uv_cfg_file": "./UV_Volumes/configs/zju_mocap_exp/377.yaml",
   "pretrained_texture_stack_path": "./data/texture_stacks/texture_static_frame0000_epoch0399.png"
 }
