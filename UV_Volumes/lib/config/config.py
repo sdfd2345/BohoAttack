@@ -112,17 +112,17 @@ def def_cfg():
 
 
     # trained model
-    cfg.trained_model_dir = '/home/yjli/AIGC/Adversarial_camou/UV_Volumes/data/trained_model'
+    cfg.trained_model_dir = './UV_Volumes/data/trained_model'
 
     # recorder
-    cfg.record_dir = '/home/yjli/AIGC/Adversarial_camou/UV_Volumes/data/record'
+    cfg.record_dir = './UV_Volumes/data/record'
     cfg.record_interval = 20
 
     # result
-    cfg.result_dir = '/home/yjli/AIGC/Adversarial_camou/UV_Volumes/data/result'
+    cfg.result_dir = './UV_Volumes/data/result'
 
     # config file
-    cfg.cfg_dir = '/home/yjli/AIGC/Adversarial_camou/UV_Volumes/data/config'
+    cfg.cfg_dir = './UV_Volumes/data/config'
 
     # evaluation
     cfg.skip_eval = False
@@ -142,23 +142,28 @@ def def_cfg():
 
     cfg.evaluate = 'evaluate'
     cfg.save_frame = 1
+    # cfg.type = ""
+    # cfg.det = ""
+    # cfg.local_rank =0
+    # cfg.device = 0
+    # cfg.launcher = "none"
     return cfg
 
-def parse_cfg(cfg, args):
-    if len(cfg.task) == 0:
-        raise ValueError('task must be specified')
+# def parse_cfg(cfg, args):
+#     if len(cfg.task) == 0:
+#         raise ValueError('task must be specified')
 
-    # assign the gpus
-    os.environ['CUDA_VISIBLE_DEVICES'] = ', '.join([str(gpu) for gpu in cfg.gpus])
-    cfg.trained_model_dir = os.path.join(cfg.trained_model_dir, cfg.task, cfg.exp_name)
-    cfg.record_dir = os.path.join(cfg.record_dir, cfg.task, cfg.exp_name)
-    cfg.result_dir = os.path.join(cfg.result_dir, cfg.task, cfg.exp_name)
-    cfg.cfg_dir = os.path.join(cfg.cfg_dir, cfg.task, cfg.exp_name)
-    cfg.local_rank = args.local_rank
-    cfg.device = args.device
-    cfg.distributed = cfg.distributed or args.launcher not in ['none']
-    if args.test:
-        cfg.result_dir = os.path.join(cfg.result_dir, 'test')
+#     # assign the gpus
+#     os.environ['CUDA_VISIBLE_DEVICES'] = ', '.join([str(gpu) for gpu in cfg.gpus])
+#     cfg.trained_model_dir = os.path.join(cfg.trained_model_dir, cfg.task, cfg.exp_name)
+#     cfg.record_dir = os.path.join(cfg.record_dir, cfg.task, cfg.exp_name)
+#     cfg.result_dir = os.path.join(cfg.result_dir, cfg.task, cfg.exp_name)
+#     cfg.cfg_dir = os.path.join(cfg.cfg_dir, cfg.task, cfg.exp_name)
+#     cfg.local_rank = args.local_rank
+#     cfg.device = args.device
+#     cfg.distributed = cfg.distributed or args.launcher not in ['none']
+#     if args.test:
+#         cfg.result_dir = os.path.join(cfg.result_dir, 'test')
 
 
 def make_cfg(cfg, args):
@@ -171,12 +176,26 @@ def make_cfg(cfg, args):
         cfg.merge_from_other_cfg(parent_cfg)
 
     cfg.merge_from_other_cfg(current_cfg)
-    cfg.merge_from_list(args.opts)
+    if len(cfg.task) == 0:
+            raise ValueError('task must be specified')
 
-    parse_cfg(cfg, args)
+    # assign the gpus
+    os.environ['CUDA_VISIBLE_DEVICES'] = ', '.join([str(gpu) for gpu in cfg.gpus])
+    cfg.trained_model_dir = os.path.join(cfg.trained_model_dir, cfg.task, cfg.exp_name)
+    cfg.record_dir = os.path.join(cfg.record_dir, cfg.task, cfg.exp_name)
+    cfg.result_dir = os.path.join(cfg.result_dir, cfg.task, cfg.exp_name)
+    cfg.cfg_dir = os.path.join(cfg.cfg_dir, cfg.task, cfg.exp_name)
+    cfg.distributed = cfg.distributed or args.launcher not in ['none']
+    cfg.local_rank = args.local_rank
+    cfg.device = args.device
+    if args.test:
+        cfg.result_dir = os.path.join(cfg.result_dir, 'test')
+    # parse_cfg(cfg, args)
 
+    if len(cfg.task) == 0:
+        raise ValueError('task must be specified')
     # remove past cfg file and save present cfg file
-    if not cfg.resume and len(args.type) == 0:
+    if not cfg.resume and len(cfg.type) == 0:
         print(colored('remove cfg directory %s' % cfg.cfg_dir, 'red'))
         os.system('rm -rf {}'.format(cfg.cfg_dir))
         if not os.path.exists(cfg.cfg_dir):
@@ -188,23 +207,32 @@ def make_cfg(cfg, args):
     return cfg
 
 def create_parse():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--cfg_file", default="/home/yjli/AIGC/Adversarial_camou/UV_Volumes/configs/zju_mocap_exp/377.yaml", type=str)
-    #### parser.add_argument("--cfg_file", default="/home/yjli/AIGC/Adversarial_camou/UV_Volumes/configs/wild/Peter_chess_guide.yaml", type=str)
-    # parser.add_argument("--cfg_file", default="/home/yjli/AIGC/Adversarial_camou/UV_Volumes/configs/wild/Peter_chess.yaml", type=str)
+    # parser = argparse.ArgumentParser()
+    # parser.add_argument("--cfg_file", default="/home/yjli/AIGC/Adversarial_camou/UV_Volumes/configs/zju_mocap_exp/377.yaml", type=str)
+    # #### parser.add_argument("--cfg_file", default="/home/yjli/AIGC/Adversarial_camou/UV_Volumes/configs/wild/Peter_chess_guide.yaml", type=str)
+    # # parser.add_argument("--cfg_file", default="/home/yjli/AIGC/Adversarial_camou/UV_Volumes/configs/wild/Peter_chess.yaml", type=str)
 
-    parser.add_argument('--test', action='store_true', dest='test', default=False)
-    parser.add_argument("--type", type=str, default="")
-    parser.add_argument('--det', type=str, default='')
-    parser.add_argument('--local_rank', type=int, default=0)
-    parser.add_argument('--device', type=int, default=0)
-    parser.add_argument('--launcher', type=str, default='none', choices=['none', 'pytorch'])
-    parser.add_argument("opts", default=None, nargs=argparse.REMAINDER)
-    return parser
+    # parser.add_argument('--test', action='store_true', dest='test', default=False)
+    # parser.add_argument("--type", type=str, default="")
+    # parser.add_argument('--det', type=str, default='')
+    # parser.add_argument('--local_rank', type=int, default=0)
+    # parser.add_argument('--device', type=int, default=0)
+    # parser.add_argument('--launcher', type=str, default='none', choices=['none', 'pytorch'])
+    # parser.add_argument("opts", default=None, nargs=argparse.REMAINDER)
+    args = CN()
+    args.cfg_file = "/home/yjli/AIGC/Adversarial_camou/UV_Volumes/configs/zju_mocap_exp/377.yaml"
+    args.test = False
+    args.type = ""
+    args.det = ""
+    args.local_rank =0
+    args.device = 0
+    args.launcher = "none"
+    return args
 
 cfg = def_cfg()
-parser =  create_parse()
-args = parser.parse_args()
+# parser =  create_parse()
+# args = parser.parse_args()
+args = create_parse()
 if len(args.type) > 0:
     cfg.task = "run"
 cfg = make_cfg(cfg, args)

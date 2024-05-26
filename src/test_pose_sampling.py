@@ -118,6 +118,7 @@ class Test_Pose_sampler():
             uv_pred_crop = torch.cuda.FloatTensor(H, W, 3).fill_(0.)
             uv_pred_crop[mask_at_box] = uv_padding[0]
             cv2.imwrite(f"results/uvmap_{idx}.png", uv_pred_crop.detach().cpu().numpy()[...,[2,1,0]]*255)
+            
 if __name__ == "__main__":
     model_path = '/home/yjli/AIGC/Adversarial_camou/SPIN/data/SMPL_NEUTRAL.pkl'
     # model_path = "/home/yjli/AIGC/humannerf/smplify_public/code/models/basicModel_neutral_lbs_10_207_0_v1.0.0.pkl"

@@ -5,6 +5,7 @@ import sys
 current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)
 sys.path.append(parent_dir)
+sys.path.append(os.path.abspath(''))
 from stable_diffusion_generator_small import StableDiffusionGenerator
 from diffusers.utils.torch_utils import randn_tensor
 from pytorch3d.structures.meshes import join_meshes_as_scene
@@ -30,34 +31,15 @@ from pytorch3d.structures import  join_meshes_as_batch
 import os
 from diffusers.utils.torch_utils import randn_tensor
 import pickle
-from pose_sampling import PoseSampler
 from UV_Volumes.lib.networks.renderer.uv_volumes import Renderer
 from UV_Volumes.lib.config import yacs
-from UV_Volumes.lib.config.config import def_cfg
+from UV_Volumes.lib.config.config import cfg
 from UV_Volumes.lib.networks import nts
 from UV_Volumes.lib.datasets import make_data_loader
 from UV_Volumes.lib.utils.net_utils import  load_network
 from UV_Volumes.TPS_tradition import warp_image_cv
 # import ultralytics
 from ultralytics import YOLO
-from pytorch3d.renderer import (
-    cameras,
-    look_at_view_transform,
-    FoVPerspectiveCameras,
-    PointLights, 
-    DirectionalLights, 
-    AmbientLights,
-    Materials, 
-    RasterizationSettings, 
-    MeshRenderer, 
-    MeshRasterizer,
-    BlendParams,
-    TexturesUV
-)
-
-# add path for demo utils functions 
-sys.path.append(os.path.abspath(''))
-
 from arch.yolov3_models import YOLOv3Darknet
 from yolo2.darknet import Darknet
 from color_util import *
@@ -65,31 +47,37 @@ from train_util import *
 import pytorch3d_modify as p3dmd
 import mesh_utils as MU
 import logging
+from pytorch3d.renderer import (
+    look_at_view_transform,
+    FoVPerspectiveCameras,
+    PointLights, 
+    DirectionalLights, 
+    AmbientLights,
+    RasterizationSettings, 
+    MeshRenderer, 
+    MeshRasterizer,
+)
 
-# Configure logging
-def create_uv_cfg(device, uvcfg_file_name):
-    uv_cfg = def_cfg()
-    with open(uvcfg_file_name, 'r') as f:
-        current_cfg = yacs.load_cfg(f)
-
-    if 'parent_cfg' in current_cfg.keys():
-        with open(current_cfg.parent_cfg, 'r') as f:
-            parent_cfg = yacs.load_cfg(f)
-        uv_cfg.merge_from_other_cfg(parent_cfg)
-
-    uv_cfg.merge_from_other_cfg(current_cfg)
-    uv_cfg.trained_model_dir = os.path.join(uv_cfg.trained_model_dir, uv_cfg.task, uv_cfg.exp_name)
-    uv_cfg.record_dir = os.path.join(uv_cfg.record_dir, uv_cfg.task, uv_cfg.exp_name)
-    uv_cfg.result_dir = os.path.join(uv_cfg.result_dir, uv_cfg.task, uv_cfg.exp_name)
-    uv_cfg.cfg_dir = os.path.join(uv_cfg.cfg_dir, uv_cfg.task, uv_cfg.exp_name)
-    uv_cfg.device = [int(device[-1])]
-    return uv_cfg
+class_names = ['person', 'bicycle', 'car', 'motorcycle', 'airplane',
+               'bus', 'train', 'truck', 'boat', 'traffic light',
+               'fire hydrant', 'stop sign', 'parking meter', 'bench', 'bird',
+               'cat', 'dog', 'horse', 'sheep', 'cow', 'elephant', 'bear',
+               'zebra', 'giraffe', 'backpack', 'umbrella', 'handbag', 'tie',
+               'suitcase', 'frisbee', 'skis', 'snowboard', 'sports ball',
+               'kite', 'baseball bat', 'baseball glove', 'skateboard',
+               'surfboard', 'tennis racket', 'bottle', 'wine glass', 'cup',
+               'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple',
+               'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza',
+               'donut', 'cake', 'chair', 'couch', 'potted plant', 'bed',
+               'dining table', 'toilet', 'tv', 'laptop', 'mouse', 'remote',
+               'keyboard', 'cell phone', 'microwave', 'oven', 'toaster',
+               'sink', 'refrigerator', 'book', 'clock', 'vase', 'scissors',
+               'teddy bear', 'hair drier', 'toothbrush']
 
 class PatchTrainer(object):
     def __init__(self, args):
         self.args = args
-        uv_config_file = args.uv_cfg_file 
-        self.uv_cfg = create_uv_cfg(args.device,  uv_config_file )
+        self.uv_cfg = cfg
         if args.device is not None:
             device = torch.device(args.device)
             torch.cuda.set_device(device)
@@ -97,6 +85,7 @@ class PatchTrainer(object):
         self.img_size = 416
         self.DATA_DIR = "./data"
         if self.args.use_GMM:
+            from pose_sampling import PoseSampler
             self.pose_sampler = PoseSampler(pose_folder = './zju_mocap/CoreView_377/new_params',)
         self.yolo_model = YOLOv3Darknet().eval().to(device)
         self.yolo_model.load_darknet_weights('arch/weights/yolov3.weights')
@@ -852,8 +841,185 @@ class PatchTrainer(object):
         else:
             avg = float('nan')
         return precision, recall, avg, confs
+        
+    def generate_video(self, adv_latents, conf_thresh=0.5, iou_thresh=0.1, video_path = "./results/video/result.mp4"):
+        self.uv_cfg.test_view = [5]
+        self.uv_cfg.num_train_frame = 500
+        self.uv_cfg.frame_interval = 1
+        self.uv_cfg.begin_ith_frame = 0
+        self.test_action_dataloader = make_data_loader(self.uv_cfg, is_train=False, is_distributed=False)
+        fps = 20
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        out = cv2.VideoWriter(video_path, fourcc, fps, (1024, 512))
+        tex_texture,Texture_pose  = self.update_UVmap_via_latent(adv_latents,
+                                self.prompts, self.negative_prompts)
+        for it, action_batch in tqdm(enumerate(self.test_action_dataloader)):
+            action_batch = self.to_cuda(action_batch, self.device)
+            action_batch['epoch'] = -1
+            with torch.no_grad():
+                uv_output = self.uvvolume_renderer.render(action_batch)
+                # get the iuv data, i is the index of human parts, uv is the predicted uv coordinates, see densepsoe,
+                iuv_map = uv_output["iuv_body"].to(self.device)
+                i_map = F.softmax(iuv_map[..., :24], dim=-1) #mask, 24
+                u_map = iuv_map[..., 24:48] # mask, 24
+                v_map = iuv_map[..., 48:]   # mask, 24
+                uv_map = torch.stack((u_map, v_map), -1)  # mask, 24, 2
+                grid = (2*uv_map.permute(1,0,2).unsqueeze(1)-1)
+                # USE THE NORMAL TEXTURE
+                texture_gridsample = torch.nn.functional.grid_sample(self.Texture_pose,
+                                    grid, 
+                                    mode='bilinear', align_corners=False) 
+                # outputsize is (mask, 3)
+                rgb_pred = (i_map.permute(1,0).unsqueeze(2) * texture_gridsample.permute(0,2,3,1).view(24,-1,3)).sum(0)
+                rgb_gt = action_batch['rgb']
+                rgb_padding = torch.cuda.FloatTensor(rgb_gt.shape).fill_(0.)
+                rgb_padding[uv_output['T_last'] < self.uv_cfg.T_threshold] = rgb_pred
+                # crop rgb pred at box
+                mask_at_box = action_batch['mask_at_box'][0]
+                H, W = action_batch['H'][0], action_batch['W'][0]
+                mask_at_box = mask_at_box.reshape(H, W)
+                rgb_pred_crop = torch.cuda.FloatTensor(H, W, 3).fill_(0.)
+                rgb_pred_crop[mask_at_box] = rgb_padding[0]
+                rgb_pred_crop = rgb_pred_crop.permute(2,0,1).unsqueeze(0)   
+                output = self.model(rgb_pred_crop)
+                conf_thresh = 0.0 if self.args.arch in ['rcnn'] else 0.1
+                output = adv_camou_utils.get_region_boxes_general(output, self.model, conf_thresh=conf_thresh, name=self.args.arch, img_size = 512)
+                cv2_img = rgb_pred_crop[0].permute(1,2,0).detach().cpu().numpy()[...,[2,1,0]] * 255
+                cv2_img = cv2.resize(cv2_img, (512, 512))
+                cv2_img = cv2_img.astype(np.uint8)
+                if output is not []:
+                    color = (255, 0, 255)  # Magenta color
+                    for box in output:
+                        x_center, y_center, width, height, conf, cls_conf, cls_id = box.detach().cpu().numpy().tolist()[0]
+                        if cls_id  < 80 and cls_conf > 0.5:
+                            x1 = int((x_center - width/2)*512)
+                            y1 = int((y_center - height/2)*512)
+                            x2 = int((x_center + width/2)*512)
+                            y2 = int((y_center + height/2)*512)
+                            cv2.rectangle(cv2_img, (x1, y1), (x2, y2), color, 2)
+                            # Put the label with a background
+                            font = cv2.FONT_HERSHEY_SIMPLEX
+                            text_size = cv2.getTextSize(class_names[int(cls_id)]+" " +str(cls_conf), font, 0.5, 1)[0]
+                            text_x = x1
+                            text_y = y1
+                            cv2.rectangle(cv2_img, (text_x, text_y - text_size[1] - 2), (text_x + text_size[0], text_y + 2), color, -1)
+                            cv2.putText(cv2_img, class_names[int(cls_id)],(text_x, text_y), font, 0.5, (0,0,0), 1, cv2.LINE_AA)     
+                            
+                # USE THE ADV TEXTURE
+                texture_gridsample = torch.nn.functional.grid_sample(Texture_pose,
+                                    grid, 
+                                    mode='bilinear', align_corners=False) 
+                rgb_pred = (i_map.permute(1,0).unsqueeze(2) * texture_gridsample.permute(0,2,3,1).view(24,-1,3)).sum(0)
+                rgb_gt = action_batch['rgb']
+                rgb_padding = torch.cuda.FloatTensor(rgb_gt.shape).fill_(0.)
+                rgb_padding[uv_output['T_last'] < self.uv_cfg.T_threshold] = rgb_pred
+                # crop rgb pred at box
+                mask_at_box = action_batch['mask_at_box'][0]
+                H, W = action_batch['H'][0], action_batch['W'][0]
+                mask_at_box = mask_at_box.reshape(H, W)
+                rgb_pred_crop = torch.cuda.FloatTensor(H, W, 3).fill_(0.)
+                rgb_pred_crop[mask_at_box] = rgb_padding[0]
+                rgb_pred_crop = rgb_pred_crop.permute(2,0,1).unsqueeze(0)   
+                output = self.model(rgb_pred_crop)
+                conf_thresh = 0.0 if self.args.arch in ['rcnn'] else 0.1
+                output = adv_camou_utils.get_region_boxes_general(output, self.model, conf_thresh=conf_thresh, name=self.args.arch, img_size = 512)
+                cv2_img2 = rgb_pred_crop[0].permute(1,2,0).detach().cpu().numpy()[...,[2,1,0]] * 255
+                cv2_img2 = cv2.resize(cv2_img2, (512, 512))
+                cv2_img2 = cv2_img2.astype(np.uint8)
+                if output is not []:
+                    color = (255, 0, 255)  # Magenta color
+                    for box in output:
+                        x_center, y_center, width, height, conf, cls_conf, cls_id = box.detach().cpu().numpy().tolist()[0]
+                        if cls_id  < 80 and cls_conf > 0.5:
+                            x1 = int((x_center - width/2)*512)
+                            y1 = int((y_center - height/2)*512)
+                            x2 = int((x_center + width/2)*512)
+                            y2 = int((y_center + height/2)*512)
+                            cv2.rectangle(cv2_img2, (x1, y1), (x2, y2), color, 2)
+                            # Put the label with a background
+                            font = cv2.FONT_HERSHEY_SIMPLEX
+                            text_size = cv2.getTextSize(class_names[int(cls_id)]+" " +str(cls_conf), font, 0.5, 1)[0]
+                            text_x = x1
+                            text_y = y1
+                            cv2.rectangle(cv2_img2, (text_x, text_y - text_size[1] - 2), (text_x + text_size[0], text_y + 2), color, -1)
+                            cv2.putText(cv2_img2, class_names[int(cls_id)],(text_x, text_y), font, 0.5, (0,0,0), 1, cv2.LINE_AA)                          
+                out.write(cv2.hconcat([cv2_img, cv2_img2]))
+        out.release()
+        print("save videp at " + video_path)
+        """     
+        count = count+1
+                normalize = True
+                if arch == "deformable-detr" and normalize:
+                    normalize = transforms.Normalize([0.485, 0.456, 0.406],[0.229, 0.224, 0.225])
+                    p_background_batch = normalize(p_background_batch)
+                if detect_model is not None:
+                    model = detect_model
+                else:
+                    model = self.model
+                    
+                output = model(p_background_batch)
+                total += len(p_background_batch)  # since 1 image only has 1 gt, so the total # gt is just = the total # images
+                pos = []
+                conf_thresh = 0.0 if arch in ['rcnn'] else 0.1
+                person_cls = 0
+                output = adv_camou_utils.get_region_boxes_general(output, model, conf_thresh=conf_thresh, name=arch)
 
+                for i, boxes in enumerate(output):
+                    if len(boxes) == 0:
+                        pos.append((0.0, False))
+                        continue
+                    assert boxes.shape[1] == 7
+                    boxes = adv_camou_utils.nms(boxes, nms_thresh=args.test_nms_thresh)
+                    w1 = boxes[..., 0] - boxes[..., 2] / 2
+                    h1 = boxes[..., 1] - boxes[..., 3] / 2
+                    w2 = boxes[..., 0] + boxes[..., 2] / 2
+                    h2 = boxes[..., 1] + boxes[..., 3] / 2
+                    bboxes = torch.stack([w1, h1, w2, h2], dim=-1)
+                    bboxes = bboxes.view(-1, 4).detach() * self.img_size
+                    scores = boxes[..., 4]
+                    labels = boxes[..., 6]
 
+                    if (len(bboxes) == 0):
+                        pos.append((0.0, False))
+                        continue
+                    scores_ordered, inds = scores.sort(descending=True)
+                    scores = scores_ordered
+                    bboxes = bboxes[inds]
+                    labels = labels[inds]
+                    inds_th = scores > conf_thresh
+                    scores = scores[inds_th]
+                    bboxes = bboxes[inds_th]
+                    labels = labels[inds_th]
+
+                    if mode == 'person':
+                        inds_label = labels == person_cls
+                        scores = scores[inds_label]
+                        bboxes = bboxes[inds_label]
+                        labels = labels[inds_label]
+                    elif mode == 'all':
+                        pass
+                    else:
+                        raise ValueError
+
+                    if (len(bboxes) == 0):
+                        pos.append((0.0, False))
+                        continue
+                    bboxes = bboxes.to(self.device)
+                    ious = torchvision.ops.box_iou(bboxes.data,
+                                                    gt[i].unsqueeze(0))  # get iou of all boxes in this image
+                    noids = (ious.squeeze(-1) > iou_thresh).nonzero()
+                    if noids.shape[0] == 0:
+                        pos.append((0.0, False))
+                    else:
+                        noid = noids.min()
+                        if labels[noid] == person_cls:
+                            pos.append((scores[noid].item(), True))
+                        else:
+                            pos.append((scores[noid].item(), False))
+                positives.extend(pos)
+                confs.extend([p[0] if p[1] else 0.0 for p in pos])"""
+        
+        
 if __name__ == '__main__':
     print('Version 2.0')
     parser = argparse.ArgumentParser(description='PyTorch Training')
@@ -870,13 +1036,12 @@ if __name__ == '__main__':
     parser.add_argument("--clamp_shift", type=float, default=0, help='')
     parser.add_argument("--seed_ratio", default=1.0, type=float, help='The ratio of trainable part when seed type is variable')
     parser.add_argument("--loss_type", default='max_iou', help='max_iou, max_conf, softplus_max, softplus_sum')
-    parser.add_argument("--test", default=False, action='store_true', help='')
+    parser.add_argument("--mode", default="video", help='train, test, video')
     parser.add_argument("--test_iou", type=float, default=0.1, help='')
     parser.add_argument("--test_nms_thresh", type=float, default=1.0, help='')
     parser.add_argument("--test_mode", default='person', help='person, all')
     parser.add_argument("--test_suffix", default='', help='')
     parser.add_argument("--train_iou", type=float, default=0.01, help='')
-    
     parser.add_argument('--device', default='cuda:1', help='')    
     parser.add_argument('--lr', type=float, default=0.001, help='')
     parser.add_argument('--lr_seed', type=float, default=0.01, help='')
@@ -913,12 +1078,12 @@ if __name__ == '__main__':
     print("save directory:", args.save_path)
     trainer = PatchTrainer(args)
     
-    if not args.test:
+    if args.mode == "train":
         import json
         with open(args.save_path + "/CONFIG.txt", "w") as outfile: 
             json.dump(args.__dict__, outfile, indent=2)
         trainer.train()
-    else:
+    elif args.mode == "test":
         save_path = "./results/rcnn/latent/one_horse/zju377/advtexture-300.pth"
         print(save_path)
         latent_dict = torch.load(save_path, map_location='cpu')
@@ -941,3 +1106,9 @@ if __name__ == '__main__':
                         result = {"precision":precision, "recall":recall, "avg":avg, "confs":confs}
                         with open(path, "wb") as f:
                             pickle.dump(result, f)
+    elif args.mode == "video":
+        save_path = "./results/rcnn/latent/one_horse/zju377/advtexture-300.pth"
+        print(save_path)
+        latent_dict = torch.load(save_path, map_location='cpu')
+        adv_latents = latent_dict["latent"].to(trainer.device).to(trainer.weight_type)
+        trainer.generate_video(adv_latents, conf_thresh=0.5, iou_thresh=0.1)

@@ -417,7 +417,7 @@ def get_region_boxes_general(output, model, conf_thresh, name=None, img_size=416
                     y_center = (y1 + y2) / (2 * img_size)
                     width = (x2 - x1) / img_size
                     height = (y2 - y1) / img_size
-                    boxes.append([x_center, y_center, width, height, detections.conf[idx].item(), detections.conf[idx].item(), int(detections.cls[idx].item())+1])
+                    boxes.append([x_center, y_center, width, height, detections.conf[idx].item(), detections.conf[idx].item(), int(detections.cls[idx].item())])
             if boxes:
                 boxes = torch.tensor(boxes)
             all_boxes.append(boxes)
