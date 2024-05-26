@@ -2,7 +2,7 @@
 This is the repository for the paper BohoAttack: Physical-realizable, Free-pose and Transferable Evasion Attacks against Person Detectors
 ## 0. Overview
 ![Example GIF](./results/video/result.gif)
-
+The person is from [ZJU-MOCAP](https://github.com/zju3dv/neuralbody/blob/master/INSTALL.md#zju-mocap-dataset) dataset.
 <!-- toc -->
 ## 1. Installation
 ### Requirements
@@ -64,7 +64,12 @@ python src/diffusion_model_patch_generator_uv_volumes.py --arc yolov3 --prompt "
 We provide the command to evaluate BohoAttack and visualize the result. For example, to evaluate the pattern saved in directory 'results/rcnn' targeting on test_arch = ["rcnn",  "mask_rcnn",  "regina",  "ssd",  "yolov35" , "detr", "yolov8", "fcos"]
 , run 
 
+### Test the ASR
 ```
-python src/diffusion_model_patch_generator_uv_volumes.py --test True
+python src/diffusion_model_patch_generator_uv_volumes.py --mode test
 ```
 
+### Generate the video
+```
+python src/diffusion_model_patch_generator_uv_volumes.py --mode video
+```
