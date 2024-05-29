@@ -8,8 +8,6 @@ sys.path.append(parent_dir)
 sys.path.append(os.path.abspath(''))
 from stable_diffusion_generator_small import StableDiffusionGenerator
 from diffusers.utils.torch_utils import randn_tensor
-from pytorch3d.structures.meshes import join_meshes_as_scene
-from pytorch3d_modify import MyHardPhongShader
 from diffusers.image_processor import VaeImageProcessor
 import lpips
 import cv2
@@ -27,7 +25,6 @@ from transformers import DeformableDetrForObjectDetection
 import torch.nn as nn
 from torchvision import transforms
 from tensorboardX import SummaryWriter
-from pytorch3d.structures import  join_meshes_as_batch
 import os
 from diffusers.utils.torch_utils import randn_tensor
 import pickle
@@ -44,8 +41,6 @@ from arch.yolov3_models import YOLOv3Darknet
 from yolo2.darknet import Darknet
 from color_util import *
 from train_util import *
-import pytorch3d_modify as p3dmd
-import mesh_utils as MU
 import logging
 from pytorch3d.renderer import (
     look_at_view_transform,
@@ -53,9 +48,6 @@ from pytorch3d.renderer import (
     PointLights, 
     DirectionalLights, 
     AmbientLights,
-    RasterizationSettings, 
-    MeshRenderer, 
-    MeshRasterizer,
 )
 
 class_names = ['person', 'bicycle', 'car', 'motorcycle', 'airplane',
@@ -348,45 +340,6 @@ class PatchTrainer(object):
         
         p_background_batch, gt = self.patch_transformer(background_batch, adv_batch) #gt is the ground truth boxes
         return p_background_batch, gt , output
-        
-
-    def synthesis_image(self, background_batch, use_tps2d=True, use_tps3d=True):
-        # render images
-        humanmesh = join_meshes_as_scene([self.mesh_man, self.mesh_tshirt, self.mesh_trouser])
-        batch_humanmesh = []
-        for i in range(self.batch_size):
-            batch_humanmesh.append(humanmesh)
-        batch_humanmesh = join_meshes_as_batch(batch_humanmesh)
-        if isinstance(self.cameras, list) or isinstance(self.cameras, tuple):
-            R, T = look_at_view_transform(*self.cameras, up=((0, 1, 0),))
-            cameras = FoVPerspectiveCameras(device=self.device, R=R, T=T, fov=45)
-        else:
-            cameras = self.cameras
-            
-        raster_settings = RasterizationSettings(
-            image_size = 500, 
-            blur_radius = 0.0, 
-            faces_per_pixel = 3, 
-            max_faces_per_bin = 30000
-        )
-        renderer = MeshRenderer(
-            rasterizer=MeshRasterizer(
-                cameras=cameras, 
-                raster_settings=raster_settings
-            ),
-           shader = MyHardPhongShader(
-                device=self.device,
-                cameras=cameras,
-                lights=self.lights
-            )
-        )
-        images_predicted = renderer(batch_humanmesh)
-        # plt.figure(figsize=(10, 10))
-        # plt.subplot(111)
-        # plt.imsave("results/experiment/diffusionpatch1.png", images_predicted[0, :, :, :3].clamp(0,1).detach().cpu().numpy())
-        adv_batch = images_predicted.permute(0, 3, 1, 2)
-        p_background_batch, gt = self.patch_transformer(background_batch, adv_batch) #gt is the ground truth boxes
-        return p_background_batch, gt 
     
     def update_UVmap_via_latent(self, latents, prompts, negative_prompts, texture = None):
         # camouflage:
@@ -508,7 +461,6 @@ class PatchTrainer(object):
             ep_tv_loss = 0
             ep_ctrl_loss = 0
             ep_seed_loss = 0
-            ep_log_likelihood = 0
             ep_lpips_loss = 0
             eff_count = 0  # record how many images in this epoch are really in training so that we can calculate accurate loss
             if epoch % 100 == 99:
@@ -550,13 +502,11 @@ class PatchTrainer(object):
                     # plt.imsave(args.save_path + f"/p_background_batch-{epoch}-{i_batch}.png", p_background_batch.permute(0,2,3,1)[0, :, :, :3].clamp(0,1).detach().cpu().numpy())
                     # print(args.save_path + f"/p_background_batch-{self.uv_cfg.exp_name}-{epoch}-{i_batch}.png")
                     
-                    t1 = time.time()
                     normalize = True
                     if self.args.arch == "deformable-detr" and normalize:
                         normalize = transforms.Normalize([0.485, 0.456, 0.406],[0.229, 0.224, 0.225])
                         p_background_batch = normalize(p_background_batch)
 
-                    t2 = time.time()
                     try:
                         if self.args.arch == "ensemble":
                             output = self.rcnn_model(p_background_batch)
@@ -712,7 +662,6 @@ class PatchTrainer(object):
 
         total = 0.
         positives = []
-        et0 = time.time()
         if self.args.use_GMM:
             self.test_action_dataloader = torch.utils.data.DataLoader(self.pose_sampler,
                                               batch_size = 1,
@@ -733,7 +682,7 @@ class PatchTrainer(object):
                     action_batch = self.to_cuda(action_batch, self.device)
                     action_batch['epoch'] = -1
                     p_background_batch, gt, output = self.synthesis_image_uv_volume(background_batch, action_batch, Texture_pose,  False, False)
-                    cv2_img = p_background_batch[0].permute(1,2,0).detach().cpu().numpy()[...,[2,1,0]] * 255
+                    # cv2_img = p_background_batch[0].permute(1,2,0).detach().cpu().numpy()[...,[2,1,0]] * 255
                     count = count+1
                     normalize = True
                     if arch == "deformable-detr" and normalize:
@@ -946,78 +895,6 @@ class PatchTrainer(object):
                 out.write(cv2.hconcat([cv2_img, cv2_img2]))
         out.release()
         print("save videp at " + video_path)
-        """     
-        count = count+1
-                normalize = True
-                if arch == "deformable-detr" and normalize:
-                    normalize = transforms.Normalize([0.485, 0.456, 0.406],[0.229, 0.224, 0.225])
-                    p_background_batch = normalize(p_background_batch)
-                if detect_model is not None:
-                    model = detect_model
-                else:
-                    model = self.model
-                    
-                output = model(p_background_batch)
-                total += len(p_background_batch)  # since 1 image only has 1 gt, so the total # gt is just = the total # images
-                pos = []
-                conf_thresh = 0.0 if arch in ['rcnn'] else 0.1
-                person_cls = 0
-                output = adv_camou_utils.get_region_boxes_general(output, model, conf_thresh=conf_thresh, name=arch)
-
-                for i, boxes in enumerate(output):
-                    if len(boxes) == 0:
-                        pos.append((0.0, False))
-                        continue
-                    assert boxes.shape[1] == 7
-                    boxes = adv_camou_utils.nms(boxes, nms_thresh=args.test_nms_thresh)
-                    w1 = boxes[..., 0] - boxes[..., 2] / 2
-                    h1 = boxes[..., 1] - boxes[..., 3] / 2
-                    w2 = boxes[..., 0] + boxes[..., 2] / 2
-                    h2 = boxes[..., 1] + boxes[..., 3] / 2
-                    bboxes = torch.stack([w1, h1, w2, h2], dim=-1)
-                    bboxes = bboxes.view(-1, 4).detach() * self.img_size
-                    scores = boxes[..., 4]
-                    labels = boxes[..., 6]
-
-                    if (len(bboxes) == 0):
-                        pos.append((0.0, False))
-                        continue
-                    scores_ordered, inds = scores.sort(descending=True)
-                    scores = scores_ordered
-                    bboxes = bboxes[inds]
-                    labels = labels[inds]
-                    inds_th = scores > conf_thresh
-                    scores = scores[inds_th]
-                    bboxes = bboxes[inds_th]
-                    labels = labels[inds_th]
-
-                    if mode == 'person':
-                        inds_label = labels == person_cls
-                        scores = scores[inds_label]
-                        bboxes = bboxes[inds_label]
-                        labels = labels[inds_label]
-                    elif mode == 'all':
-                        pass
-                    else:
-                        raise ValueError
-
-                    if (len(bboxes) == 0):
-                        pos.append((0.0, False))
-                        continue
-                    bboxes = bboxes.to(self.device)
-                    ious = torchvision.ops.box_iou(bboxes.data,
-                                                    gt[i].unsqueeze(0))  # get iou of all boxes in this image
-                    noids = (ious.squeeze(-1) > iou_thresh).nonzero()
-                    if noids.shape[0] == 0:
-                        pos.append((0.0, False))
-                    else:
-                        noid = noids.min()
-                        if labels[noid] == person_cls:
-                            pos.append((scores[noid].item(), True))
-                        else:
-                            pos.append((scores[noid].item(), False))
-                positives.extend(pos)
-                confs.extend([p[0] if p[1] else 0.0 for p in pos])"""
         
         
 if __name__ == '__main__':
@@ -1031,9 +908,6 @@ if __name__ == '__main__':
     parser.add_argument("--lr_decay", type=float, default=0.5, help='')
     parser.add_argument("--lr_decay_seed", type=float, default=2, help='')
     parser.add_argument("--arch", type=str, default="rcnn")
-    parser.add_argument("--seed_type", default='fixed', help='fixed, random, variable, langevin')
-    parser.add_argument("--rd_num", type=int, default=200, help='')
-    parser.add_argument("--clamp_shift", type=float, default=0, help='')
     parser.add_argument("--seed_ratio", default=1.0, type=float, help='The ratio of trainable part when seed type is variable')
     parser.add_argument("--loss_type", default='max_iou', help='max_iou, max_conf, softplus_max, softplus_sum')
     parser.add_argument("--mode", default="video", help='train, test, video')
@@ -1063,7 +937,6 @@ if __name__ == '__main__':
     parser.add_argument("--uv_cfg_file", type = str, default="./UV_Volumes/configs/zju_mocap_exp/377.yaml", help='action sampling file name')
     parser.add_argument("--pretrained_texture_stack_path", type = str, default="./data/texture_stacks/texture_static_frame0000_epoch0399.png")
     args = parser.parse_args()
-    assert args.seed_type in ['fixed', 'random', 'variable', 'langevin']
 
     torch.backends.cuda.matmul.allow_tf32 = False
     torch.backends.cudnn.allow_tf32 = False
@@ -1096,11 +969,9 @@ if __name__ == '__main__':
             iou_list = [ 0.5, 0.3, 0.1, 0.01]
             for iou in iou_list:
                 precision, recall, avg, confs, thetas = trainer.test(args.arch, adv_latents, conf_thresh=0.01, iou_thresh=iou, angle_sample=37, mode=args.test_mode)
-                print(f"{arch} ASR:", (confs < 0.5).mean())
                 for con in [0.1, 0.3, 0.5, 0.7, 0.9]:
                     with open(path, 'a') as file:   
                         file.write(f"{arch} iou {iou} confs {con}  ASR\: {(confs < con).mean()}\n")
-                        print(f"{arch} ASR:", (confs < con).mean())
                         path = args.save_path + '/' + 'test_results_'+arch
                         path = path + '_iou' + str(args.iou_thresh).replace('.', '') + '.pkl'
                         result = {"precision":precision, "recall":recall, "avg":avg, "confs":confs}
