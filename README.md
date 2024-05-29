@@ -75,4 +75,4 @@ python src/diffusion_model_patch_generator_uv_volumes.py --mode video
 ```
 
 ## Acknowledge
-Our code is built based on [UV-Volumes](https://github.com/fanegg/UV-Volumes) and [Adv-CaT]((https://github.com/WhoTHU/Adversarial_camou).
+Our code is built based on [UV-Volumes](https://github.com/fanegg/UV-Volumes) and [Adv-CaT](https://github.com/WhoTHU/Adversarial_camou).
